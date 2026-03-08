@@ -8,8 +8,8 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock README.md ./
 
 # 安装依赖
-RUN mkdir -p src/nexus && \
-    touch src/nexus/__init__.py && \
+RUN mkdir -p src/bodhi && \
+    touch src/bodhi/__init__.py && \
     poetry install --no-root
 # 拷贝 pyproject.toml 和 poetry.lock 文件
 COPY . .
@@ -21,5 +21,5 @@ RUN poetry install
 EXPOSE 8000
 
 # 默认入口
-CMD ["poetry", "run", "python", "-m", "nexus.commands.app"]
+CMD ["poetry", "run", "python", "-m", "bodhi.commands.app"]
 
