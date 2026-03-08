@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from bodhi.servicer.realtime_manager import RealtimeWebSocketManager, manager
+from bodhi.servicer.realtime_upstream import load_realtime_config_from_env
 from bodhi.servicer.servicer import SessionMessageService
 
 router = APIRouter()
@@ -50,3 +51,9 @@ async def websocket_endpoint(
 @router.get("/")
 async def read_index():
     return FileResponse("static/index.html")
+
+
+@router.get("/config")
+async def read_config():
+    config = load_realtime_config_from_env()
+    return {"default_voice": config.voice}

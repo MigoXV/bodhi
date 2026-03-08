@@ -19,6 +19,7 @@ from bodhi.types.servicer import (
     ImageEvent,
     ImageStartEvent,
     InterruptEvent,
+    SetVoiceEvent,
     ServerEnvelope,
     TextEvent,
     ToolApprovalDecisionEvent,
@@ -55,6 +56,8 @@ class RealtimeManagerProtocol(Protocol):
 
     async def interrupt(self, session_id: str) -> None: ...
 
+    async def set_voice(self, session_id: str, voice: str) -> None: ...
+
 
 HandlerType = Callable[[str, ClientEventUnion], Awaitable[list[ServerEnvelope]]]
 
@@ -73,6 +76,7 @@ class ClientEventHandlers:
             "image_end": self.handle_image_end,
             "tool_approval_decision": self.handle_tool_approval_decision,
             "interrupt": self.handle_interrupt,
+            "set_voice": self.handle_set_voice,
         }
 
     def cleanup_session(self, session_id: str) -> None:
@@ -234,6 +238,18 @@ class ClientEventHandlers:
 
         await self.realtime_manager.interrupt(session_id)
         return []
+
+    async def handle_set_voice(
+        self, session_id: str, event: ClientEventUnion
+    ) -> list[ServerEnvelope]:
+        assert isinstance(event, SetVoiceEvent)
+
+        voice = event.voice.strip()
+        if not voice:
+            return [ErrorEnvelope(error="Empty voice value.")]
+
+        await self.realtime_manager.set_voice(session_id, voice)
+        return [ClientInfoEnvelope(info="voice_updated", id=voice)]
 
     async def _enqueue_image_message(
         self,

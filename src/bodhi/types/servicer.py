@@ -51,6 +51,11 @@ class InterruptEvent(BaseModel):
     type: Literal["interrupt"]
 
 
+class SetVoiceEvent(BaseModel):
+    type: Literal["set_voice"]
+    voice: str
+
+
 ClientEventUnion: TypeAlias = Annotated[
     (
         AudioEvent
@@ -62,6 +67,7 @@ ClientEventUnion: TypeAlias = Annotated[
         | ImageEndEvent
         | ToolApprovalDecisionEvent
         | InterruptEvent
+        | SetVoiceEvent
     ),
     Field(discriminator="type"),
 ]
@@ -82,4 +88,3 @@ class ErrorEnvelope(BaseModel):
 
 
 ServerEnvelope: TypeAlias = ClientInfoEnvelope | ErrorEnvelope
-

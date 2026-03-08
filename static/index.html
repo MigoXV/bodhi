@@ -216,6 +216,14 @@
             border-radius: 6px;
         }
 
+        .voice-select {
+            flex: 0 0 140px;
+            padding: 0.5rem;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            background: white;
+        }
+
         .send-text-btn {
             padding: 0.5rem 1rem;
             border: none;
@@ -290,6 +298,13 @@
             </div>
             <div class="controls">
                 <button id="muteBtn" class="mute-btn unmuted" disabled>🎤 Mic On</button>
+                <select id="voiceSelect" class="voice-select">
+                    <option value="alloy" selected>alloy</option>
+                    <option value="rita">rita</option>
+                    <option value="ayato">ayato</option>
+                    <option value="paimon">paimon</option>
+                    <option value="pheebo">pheebo</option>
+                </select>
                 <input id="textInput" class="text-input" type="text" placeholder="Type a message" disabled />
                 <button id="sendTextBtn" type="button" class="send-text-btn" disabled>Send Text</button>
                 <input id="imagePrompt" type="text" placeholder="Optional prompt for image" style="flex: 1 1 220px; min-width: 180px; padding: 0.5rem; border: 1px solid #e1e5e9; border-radius: 6px;" />

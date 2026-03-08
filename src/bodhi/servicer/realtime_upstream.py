@@ -31,15 +31,35 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REALTIME_MODEL = "gpt-realtime"
 DEFAULT_TRANSCRIPTION_MODEL = "whisper-1"
+DEFAULT_AUDIO_SAMPLE_RATE = 24000
+DEFAULT_VOICE = "alloy"
 
 
 @dataclass(frozen=True)
 class RealtimeUpstreamConfig:
     model_name: str
     transcription_model: str
+    voice: str
     api_key: str | None
     base_url: str | None
     websocket_base_url: str | None
+
+
+def load_realtime_config_from_env() -> RealtimeUpstreamConfig:
+    realtime_url = os.getenv("OPENAI_REALTIME_URL")
+    websocket_base_url = _derive_websocket_base_url(realtime_url)
+
+    return RealtimeUpstreamConfig(
+        model_name=os.getenv("OPENAI_REALTIME_MODEL_NAME", DEFAULT_REALTIME_MODEL),
+        transcription_model=os.getenv(
+            "OPENAI_REALTIME_TRANSCRIPTION_MODEL",
+            DEFAULT_TRANSCRIPTION_MODEL,
+        ),
+        voice=os.getenv("OPENAI_REALTIME_VOICE", DEFAULT_VOICE),
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_BASE_URL"),
+        websocket_base_url=websocket_base_url,
+    )
 
 
 class OpenAIRealtimeUpstream:
@@ -55,20 +75,7 @@ class OpenAIRealtimeUpstream:
 
     @classmethod
     def from_env(cls) -> "OpenAIRealtimeUpstream":
-        realtime_url = os.getenv("OPENAI_REALTIME_URL")
-        websocket_base_url = _derive_websocket_base_url(realtime_url)
-
-        config = RealtimeUpstreamConfig(
-            model_name=os.getenv("OPENAI_REALTIME_MODEL_NAME", DEFAULT_REALTIME_MODEL),
-            transcription_model=os.getenv(
-                "OPENAI_REALTIME_TRANSCRIPTION_MODEL",
-                DEFAULT_TRANSCRIPTION_MODEL,
-            ),
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL"),
-            websocket_base_url=websocket_base_url,
-        )
-        return cls(config)
+        return cls(load_realtime_config_from_env())
 
     async def connect(self) -> None:
         manager = self._client.realtime.connect(model=self.config.model_name)
@@ -92,12 +99,17 @@ class OpenAIRealtimeUpstream:
         *,
         tools: list[RealtimeFunctionTool],
         instructions: str,
+        voice: str | None = None,
     ) -> None:
+        selected_voice = (voice or self.config.voice).strip()
         session = RealtimeSessionCreateRequest(
             type="realtime",
             audio=RealtimeAudioConfig(
                 input=RealtimeAudioConfigInput(
-                    format=AudioPCM(type="audio/pcm", rate=24000),
+                    format=AudioPCM(
+                        type="audio/pcm",
+                        rate=DEFAULT_AUDIO_SAMPLE_RATE,
+                    ),
                     turn_detection=ServerVad(
                         type="server_vad",
                         prefix_padding_ms=300,
@@ -110,7 +122,11 @@ class OpenAIRealtimeUpstream:
                     ),
                 ),
                 output=RealtimeAudioConfigOutput(
-                    format=AudioPCM(type="audio/pcm"),
+                    format=AudioPCM(
+                        type="audio/pcm",
+                        rate=DEFAULT_AUDIO_SAMPLE_RATE,
+                    ),
+                    voice=selected_voice,
                 ),
             ),
             output_modalities=["audio"],

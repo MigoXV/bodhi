@@ -2,11 +2,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from openai.types.realtime import RealtimeConversationItemUserMessage
 
-from bodhi.api.endpoint import (
-    get_message_service,
-    get_realtime_manager,
-    router,
-)
+from bodhi.api import endpoint
+from bodhi.api.endpoint import get_message_service, get_realtime_manager, router
 from bodhi.servicer.servicer import SessionMessageService
 
 
@@ -89,3 +86,20 @@ def test_websocket_endpoint_routes_to_service_and_disconnect_cleanup():
     assert manager.disconnected == ["session-a"]
     assert "session-a" not in service.handlers.image_buffers
     assert len(manager.user_messages) == 1
+
+
+def test_config_endpoint_returns_default_voice(monkeypatch):
+    app = FastAPI()
+    app.include_router(router)
+
+    monkeypatch.setattr(
+        endpoint,
+        "load_realtime_config_from_env",
+        lambda: type("Config", (), {"voice": "paimon"})(),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/config")
+
+    assert response.status_code == 200
+    assert response.json() == {"default_voice": "paimon"}

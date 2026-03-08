@@ -15,7 +15,10 @@ from openai.types.realtime import ResponseDoneEvent, RealtimeConversationItemUse
 
 from bodhi.servicer.realtime_events import RealtimeEventMapper
 from bodhi.servicer.realtime_tools import RealtimeToolCoordinator, RealtimeToolRegistry
-from bodhi.servicer.realtime_upstream import OpenAIRealtimeUpstream
+from bodhi.servicer.realtime_upstream import (
+    DEFAULT_AUDIO_SAMPLE_RATE,
+    OpenAIRealtimeUpstream,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +34,9 @@ class SessionRuntime:
     upstream: OpenAIRealtimeUpstream
     event_mapper: RealtimeEventMapper
     tool_coordinator: RealtimeToolCoordinator
+    instructions: str
+    tools: list[Any]
+    voice: str
     event_task: asyncio.Task[None] | None = None
     audio_buffer: bytearray = field(default_factory=bytearray)
 
@@ -65,14 +71,18 @@ class RealtimeWebSocketManager:
             upstream=upstream,
             event_mapper=event_mapper,
             tool_coordinator=tool_coordinator,
+            instructions=self._tool_registry.instructions,
+            tools=self._tool_registry.tool_definitions(),
+            voice=upstream.config.voice,
         )
         self.active_sessions[session_id] = runtime
 
         try:
             await upstream.connect()
             await upstream.configure_session(
-                tools=self._tool_registry.tool_definitions(),
-                instructions=self._tool_registry.instructions,
+                tools=runtime.tools,
+                instructions=runtime.instructions,
+                voice=runtime.voice,
             )
         except Exception:
             self.active_sessions.pop(session_id, None)
@@ -179,6 +189,18 @@ class RealtimeWebSocketManager:
         await runtime.upstream.cancel_response()
         await self._emit_to_frontend(session_id, {"type": "audio_interrupted"})
 
+    async def set_voice(self, session_id: str, voice: str) -> None:
+        runtime = self.active_sessions.get(session_id)
+        if runtime is None:
+            return
+
+        runtime.voice = voice
+        await runtime.upstream.configure_session(
+            tools=runtime.tools,
+            instructions=runtime.instructions,
+            voice=runtime.voice,
+        )
+
     async def _process_events(self, session_id: str):
         runtime = self.active_sessions.get(session_id)
         if runtime is None:
@@ -250,7 +272,7 @@ class RealtimeWebSocketManager:
             with wave.open(filepath, "wb") as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(2)
-                wf.setframerate(24000)
+                wf.setframerate(DEFAULT_AUDIO_SAMPLE_RATE)
                 wf.writeframes(bytes(audio_data))
             logger.info(
                 "Saved %d bytes of audio to %s for session %s.",

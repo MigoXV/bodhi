@@ -22,11 +22,13 @@ class RealtimeDemo {
 
         this.initializeElements();
         this.setupEventListeners();
+        this.loadInitialConfig();
     }
 
     initializeElements() {
         this.connectBtn = document.getElementById('connectBtn');
         this.muteBtn = document.getElementById('muteBtn');
+        this.voiceSelect = document.getElementById('voiceSelect');
         this.textInput = document.getElementById('textInput');
         this.sendTextBtn = document.getElementById('sendTextBtn');
         this.imageBtn = document.getElementById('imageBtn');
@@ -49,6 +51,10 @@ class RealtimeDemo {
 
         this.muteBtn.addEventListener('click', () => {
             this.toggleMute();
+        });
+
+        this.voiceSelect.addEventListener('change', () => {
+            this.syncVoiceSelection();
         });
 
         this.sendTextBtn.addEventListener('click', () => {
@@ -114,6 +120,24 @@ class RealtimeDemo {
         return 'session_' + Math.random().toString(36).substr(2, 9);
     }
 
+    async loadInitialConfig() {
+        if (!this.voiceSelect) return;
+
+        try {
+            const response = await fetch('/config');
+            if (!response.ok) return;
+            const config = await response.json();
+            const voice = typeof config.default_voice === 'string' ? config.default_voice.trim() : '';
+            if (!voice) return;
+            const option = Array.from(this.voiceSelect.options).find(({ value }) => value === voice);
+            if (option) {
+                this.voiceSelect.value = voice;
+            }
+        } catch (error) {
+            console.warn('Failed to load initial config:', error);
+        }
+    }
+
     async connect() {
         try {
             this.ws = new WebSocket(`ws://localhost:8000/ws/${this.sessionId}`);
@@ -148,6 +172,14 @@ class RealtimeDemo {
             this.ws.close();
         }
         this.stopContinuousCapture();
+    }
+
+    syncVoiceSelection() {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.voiceSelect) return;
+        this.ws.send(JSON.stringify({
+            type: 'set_voice',
+            voice: this.voiceSelect.value
+        }));
     }
 
     updateConnectionUI() {
@@ -405,6 +437,11 @@ class RealtimeDemo {
         const itemId = event.item_id;
         console.debug('[model]', modelType, 'item_id=', itemId);
 
+        if (modelType === 'session.created' || modelType === 'session.updated') {
+            this.applySessionVoice(event.session);
+            return;
+        }
+
         if (modelType === 'conversation.item.input_audio_transcription.completed') {
             const transcription = event.transcription || event.transcript;
             if (transcription && itemId) {
@@ -452,6 +489,20 @@ class RealtimeDemo {
         ) {
             const text = event.audio_transcript || event.transcript;
             if (text && itemId) this.applyMessageText(itemId, text, 'assistant');
+        }
+    }
+
+    applySessionVoice(session) {
+        if (!session || typeof session !== 'object' || !this.voiceSelect) return;
+        const voice = typeof session.voice === 'string'
+            ? session.voice.trim()
+            : typeof session.audio?.output?.voice === 'string'
+                ? session.audio.output.voice.trim()
+                : '';
+        if (!voice) return;
+        const option = Array.from(this.voiceSelect.options).find(({ value }) => value === voice);
+        if (option) {
+            this.voiceSelect.value = voice;
         }
     }
 

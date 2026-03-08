@@ -26,6 +26,7 @@ class FakeUpstream:
     def __init__(self):
         self.connected = False
         self.closed = False
+        self.config = type("Config", (), {"voice": "alloy"})()
         self.configured_sessions: list[dict] = []
         self.appended_audio: list[bytes] = []
         self.commit_calls = 0
@@ -43,11 +44,12 @@ class FakeUpstream:
         self.closed = True
         await self._event_queue.put(None)
 
-    async def configure_session(self, *, tools, instructions: str) -> None:
+    async def configure_session(self, *, tools, instructions: str, voice: str | None = None) -> None:
         self.configured_sessions.append(
             {
                 "tools": tools,
                 "instructions": instructions,
+                "voice": voice,
             }
         )
 
@@ -103,6 +105,7 @@ async def test_manager_send_audio_user_message_commit_interrupt_and_disconnect(
     assert len(upstream.configured_sessions) == 1
     assert len(upstream.configured_sessions[0]["tools"]) == 3
     assert upstream.configured_sessions[0]["instructions"]
+    assert upstream.configured_sessions[0]["voice"] == "alloy"
 
     await manager.send_audio("s1", b"\x01\x02\x03\x04")
     assert upstream.appended_audio == [b"\x01\x02\x03\x04"]
@@ -130,6 +133,9 @@ async def test_manager_send_audio_user_message_commit_interrupt_and_disconnect(
     await manager.interrupt("s1")
     assert upstream.cancel_calls == [None]
     assert websocket.sent_events[-1] == {"type": "audio_interrupted"}
+
+    await manager.set_voice("s1", "rita")
+    assert upstream.configured_sessions[-1]["voice"] == "rita"
 
     await manager.disconnect("s1")
 
